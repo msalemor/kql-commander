@@ -1,12 +1,13 @@
+import asyncio
+import logging
+
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, HTTPException
-import asyncio
-import logging
 from azure.kusto.data import KustoConnectionStringBuilder
 from azure.kusto.data.aio import KustoClient
-from .models import *
+from models import *
 
 KUSTO_CLUSTER = "https://help.kusto.windows.net/"
 kcsb = KustoConnectionStringBuilder.with_az_cli_authentication(KUSTO_CLUSTER)
@@ -173,9 +174,9 @@ async def sample():
     # await get_schema()
 
 
-@app.post("/api/chat")
-async def chat():
-    return {'message': 'OK'}
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    return ChatResponse(content="")
 
 
 @app.post("/api/execute")

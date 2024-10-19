@@ -46,3 +46,19 @@ class DatabaseTableInfo(BaseModel):
     DatabaseName: str
     TableName: str
     Schema: List[TableSchema]
+
+
+class Message(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: List[Message] = []
+    temperature: float = 0.1
+    max_tokens: int | None = None
+    chat_model: str = 'gtp-4o'
+
+
+class ChatResponse(BaseModel):
+    content: str
