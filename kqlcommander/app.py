@@ -4,10 +4,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, HTTPException
 import asyncio
 import logging
-from typing import Any, List
 from azure.kusto.data import KustoConnectionStringBuilder
 from azure.kusto.data.aio import KustoClient
-from pydantic import BaseModel
+from .models import *
 
 KUSTO_CLUSTER = "https://help.kusto.windows.net/"
 kcsb = KustoConnectionStringBuilder.with_az_cli_authentication(KUSTO_CLUSTER)
@@ -40,46 +39,6 @@ async def exec_query(db, query):
     except:
         logging.error("Unable to query")
         return []
-
-
-class ExecuteRequest(BaseModel):
-    db: str
-    query: str
-
-
-class DataRows(BaseModel):
-    table_name: str
-    table_id: int
-    table_kind: str
-    columns: Any
-    raw_rows: List[Any]
-
-
-class Database(BaseModel):
-    DatabaseName: str
-
-
-class Table(BaseModel):
-    TableName: str = 'SecurityLogs'
-
-
-class TableSchema(BaseModel):
-    ColumnName: str
-    DataType: str
-
-
-class TableInfo(BaseModel):
-    TableName: str
-    Schema: List[TableSchema]
-
-
-class DatabaseTree(BaseModel):
-    DatabaseName: str
-    Tables: List[TableInfo]
-
-
-class Tree(BaseModel):
-    DatabasesTree: List[DatabaseTree]
 
 
 @app.get("/api/databases", response_model=list[Database])
@@ -143,12 +102,6 @@ async def get_table_schemas(db: str, tables: list) -> list:
     time_diff = (datetime.now() - start_time).total_seconds()
     print("Processing time:", time_diff)
     return results
-
-
-class DatabaseTableInfo(BaseModel):
-    DatabaseName: str
-    TableName: str
-    Schema: List[TableSchema]
 
 
 async def get_dbtable_schemas(databases: list, tables: list) -> list:
