@@ -1,3 +1,5 @@
+.PHONY: default, clean
+
 default:
 	@echo "Nada"
 
@@ -7,3 +9,7 @@ clean:
 	mkdir static
 	cp index.html static/.
 	rm index.html
+
+build-ui: clean
+	cd frontend && bun run build
+	cp -r frontend/dist/* static
