@@ -1,0 +1,6 @@
+openai==1.52.0
+fastapi
+uvicorn[standard]
+azure-kusto-data[aio]
+python-dotenv
+click
