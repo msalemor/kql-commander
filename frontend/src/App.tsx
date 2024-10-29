@@ -1,17 +1,115 @@
-import { useState } from 'react'
+import axios from 'axios'
+import { useEffect, useState } from 'react'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 // import reactLogo from './assets/react.svg'
 // import viteLogo from '/vite.svg'
 // import './App.css'
 
 const Default_Settings = {
-  system_prompt: "You are an AI that can help generate KQL queries.",
-  schema: "storm_events:\nstate,string\nevent_name,string\nstart_date,datetime\n",
-  prompt: "Generate a KQL query to find all the funnel clouds in Florida in 2024?"
+  system_prompt: `You are an AI that can help generate KQL queries. 
+
+Use the following schema:
+<SCHEMA>
+
+Rule:
+- Include the database name in the query in the format: database("databasename").tablename
+- Write the KQL query only. No epilogue or prologue.
+`,
+  schema: "...retrieving",
+  prompt: "List the first 10 customers in London?",
+  completion: ""
+}
+
+const BASE_URL = import.meta.env.VITE_BASE_URL
+const TREE_URL = BASE_URL + import.meta.env.VITE_TREE_URL
+const CHAT_COMPLETION_URL = BASE_URL + import.meta.env.VITE_COMPLETION_URL
+const EXECUTE_URL = BASE_URL + import.meta.env.VITE_EXECUTE_URL
+
+
+interface IMessage {
+  role: string
+  content: string
+}
+
+interface TableSchema {
+  ColumnName: string
+  DataType: string
+}
+
+
+interface TableInfo {
+  TableName: string
+  Schema: TableSchema[]
+}
+
+
+interface DatabaseTree {
+  DatabaseName: string
+  Tables: TableInfo[]
+}
+
+interface Tree {
+  DatabasesTree: DatabaseTree[]
 }
 
 function App() {
   const [settings, setSettings] = useState(Default_Settings)
-  //const [count, setCount] = useState(0)
+  const [tree, setTree] = useState<Tree>({ DatabasesTree: [] })
+  const [showschema, setShowschema] = useState(true)
+
+  const getTree = async () => {
+    try {
+      //alert('test')
+      const re = await axios.get<Tree>(TREE_URL)
+      //console.info(JSON.stringify(re.data))
+      setTree(re.data)
+
+      const regex = /System./g;
+      const json_data = JSON.stringify(re.data, null, 2).replace(regex, "")
+      settings.schema = json_data
+      setSettings({ ...settings })
+      //alert(tree)
+    } catch (e) {
+      console.error(e)
+    }
+
+  }
+
+  const getChatCompletion = async () => {
+    try {
+      const messages = [
+        {
+          role: 'system',
+          content: settings.system_prompt.replace('<SCHEMA>', settings.schema)
+        },
+        {
+          role: 'user',
+          content: settings.prompt
+        }
+      ]
+      const payload = {
+        messages,
+        temperature: 0.1,
+        chat_model: 'gpt-4o'
+      }
+
+      const re = await axios.post(CHAT_COMPLETION_URL, payload)
+      //settings.completion = re.data.content
+      setSettings({ ...settings, completion: re.data.content })
+    } catch (e) {
+      console.info(e)
+    }
+  }
+
+  const execute = async () => { }
+
+  useEffect(() => {
+    if (tree)
+      getTree()
+
+    console.info(JSON.stringify(tree))
+  }, [])
 
   return (
     <>
@@ -19,8 +117,28 @@ function App() {
         <h2 className="text-lg font-bold mx-2 p-0">KQL Commander</h2>
       </header>
       <section className="flex h-[calc(100vh-40px-35px)]">
-        <aside className="w-[250px] bg-slate-50 flex flex-col overflow-auto p-3">
-          Databases
+        <aside className="w-[350px] bg-slate-50 flex flex-col overflow-auto p-3">
+          <span className="uppercase font-bold">Databases</span>
+          <button
+            className='bg-blue-600 text-white'
+            onClick={() => setShowschema(!showschema)}
+          >
+            {showschema && <span>Hide Schema</span>}
+            {!showschema && <span>Show Schema</span>}
+          </button>
+          <ul className='text-sm'>
+            {tree.DatabasesTree.map(x => <li>
+              {x.DatabaseName}
+              <ul>
+                {x.Tables.map(table => <li>
+                  {table.TableName}
+                  <ul>
+                    {showschema && table.Schema.map(s => <li>{s.ColumnName}-{s.DataType.replace("System.", "")}</li>)}
+                  </ul>
+                </li>)}
+              </ul>
+            </li>)}
+          </ul>
         </aside>
         <section className="w-full bg-slate-100 flex flex-col p-3">
           <div className='flex'>
@@ -49,12 +167,22 @@ function App() {
             </div>
             <div className='w-1/4 flex flex-col mx-2'>
               <label className='uppercase font-semibold'>Completion</label>
-              <textarea className='h-full resize-none outline-none border p-1' />
+              {/* <textarea className='h-full resize-none outline-none border p-1' 
+              
+              /> */}
+              <div className='h-full bg-slate-800 text-white p-2 overflow-auto'>
+                <Markdown className='' remarkPlugins={[remarkGfm]}>{settings.completion}</Markdown>
+              </div>
+
             </div>
           </div>
           <section className="space-x-2 m-2">
-            <button className="bg-blue-600 text-white p-2">Process</button>
-            <button className="bg-blue-600 text-white p-2">Execute</button>
+            <button className="bg-blue-600 text-white p-2"
+              onClick={getChatCompletion}
+            >Process</button>
+            <button className="bg-blue-600 text-white p-2"
+              onClick={execute}
+            >Execute</button>
           </section>
           <label className='uppercase font-semibold'>Results</label>
           <div className="h-full bg-slate-200"></div>
