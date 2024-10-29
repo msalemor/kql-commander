@@ -4,3 +4,4 @@ uvicorn[standard]
 azure-kusto-data[aio]
 python-dotenv
 click
+aiofiles

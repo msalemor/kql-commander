@@ -1,11 +1,25 @@
 import logging
+import os
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, HTTPException
+from openai import AsyncAzureOpenAI
 from kqlhelper import exec_query, kql_databases, kql_table_schema, kql_tables, kql_tree
 from models import *
+from dotenv import load_dotenv
 
+load_dotenv()
+ENDPOINT_URL = os.getenv('OPENAI_ENDPOINT')
+API_KEY = os.getenv("OPENAI_KEY")
+VERSION = os.getenv("OPENAI_VERSION")
+CHAT_MODEL = os.getenv("OPENAI_MODEL")
+if ENDPOINT_URL is None or API_KEY is None or VERSION is None or CHAT_MODEL is None:
+    logging.error("Missing required environment variables.")
+    exit(1)
+
+client = AsyncAzureOpenAI(azure_endpoint=ENDPOINT_URL,
+                          api_key=API_KEY, api_version=VERSION)
 
 app = FastAPI()
 
@@ -43,7 +57,17 @@ async def get_tree():
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    return ChatResponse(content="")
+    if not request.messages or len(request.messages) == 0:
+        raise HTTPException(
+            status_code=400, detail="Messages property required")
+
+    response = await client.chat.completions.create(
+        model=CHAT_MODEL,
+        messages=request.messages,
+        temperature=request.temperature
+    )
+
+    return ChatResponse(content=response.choices[0].message.content)
 
 
 @app.post("/api/execute")

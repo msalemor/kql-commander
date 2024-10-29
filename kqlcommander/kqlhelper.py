@@ -5,7 +5,7 @@ import logging
 from azure.kusto.data import KustoConnectionStringBuilder
 from azure.kusto.data.aio import KustoClient
 
-from cacheservice import cache, get_cache
+from cacheservice import load_key, save_key
 from models import Database, DatabaseTableInfo, DatabaseTree, Table, TableInfo, TableSchema, Tree
 
 
@@ -103,7 +103,7 @@ async def get_dbtable_schemas(databases: list, tables: list) -> list:
 
 
 async def kql_tree():
-    cache_data = await get_cache('tree')
+    cache_data = await load_key('./cache.dat', 'tree')
     if cache_data is None:
         # Databases
         list = []
@@ -123,10 +123,10 @@ async def kql_tree():
                 DatabaseName=db.DatabaseName, Tables=table_list))
 
         tree = Tree(DatabasesTree=list)
-        cache('tree', tree)
+        await save_key('./cache.dat', 'tree', tree)
         return tree
     else:
-        return Tree.model_validate_json(cache_data)
+        return cache_data
 
 
 async def get_data():
