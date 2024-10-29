@@ -11,3 +11,7 @@ clean:
 build-ui: clean
 	cd frontend && bun run build
 	cp -r frontend/dist/* static
+
+run-ui:
+	@echo "Run UI"	
+	cd frontend && bun run dev
