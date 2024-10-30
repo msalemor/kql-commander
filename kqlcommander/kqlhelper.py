@@ -6,11 +6,13 @@ from azure.kusto.data import KustoConnectionStringBuilder
 from azure.kusto.data.aio import KustoClient
 
 from cacheservice import load_key, save_key
+from settings import get_settings_instance
 from models import Database, DatabaseTableInfo, DatabaseTree, Table, TableInfo, TableSchema, Tree
 
 
-KUSTO_CLUSTER = "https://help.kusto.windows.net/"
-kcsb = KustoConnectionStringBuilder.with_az_cli_authentication(KUSTO_CLUSTER)
+settings = get_settings_instance()
+kcsb = KustoConnectionStringBuilder.with_az_cli_authentication(
+    settings.cluster)
 
 
 def print_rows(rows):
@@ -50,7 +52,7 @@ async def kql_table_schema(db: str = 'ContosoSales', table_name='Customers'):
     rows = await exec_query(db, query)
     list = []
     for row in rows.primary_results[0]:
-        list.append(TableSchema(ColumnName=row[0], DataType=row[2]))
+        list.append(TableSchema(ColumnName=row[0], DataType=row[3]))
     list.sort(key=lambda x: x.ColumnName)
     return list
 
@@ -60,7 +62,7 @@ async def get_dbschema_info(db: str = 'ContosoSales', table_name='Customers'):
     rows = await exec_query(db, query)
     list = []
     for row in rows.primary_results[0]:
-        list.append(TableSchema(ColumnName=row[0], DataType=row[2]))
+        list.append(TableSchema(ColumnName=row[0], DataType=row[3]))
     list.sort(key=lambda x: x.ColumnName)
     return DatabaseTableInfo(DatabaseName=db, TableName=table_name, Schema=list)
 
@@ -70,7 +72,7 @@ async def get_schema_info(db: str = 'ContosoSales', table_name='Customers'):
     rows = await exec_query(db, query)
     list = []
     for row in rows.primary_results[0]:
-        list.append(TableSchema(ColumnName=row[0], DataType=row[2]))
+        list.append(TableSchema(ColumnName=row[0], DataType=row[3]))
     list.sort(key=lambda x: x.ColumnName)
     return TableInfo(TableName=table_name, Schema=list)
 

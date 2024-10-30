@@ -5,21 +5,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, HTTPException
 from openai import AsyncAzureOpenAI
+from settings import get_settings_instance
 from kqlhelper import exec_query, kql_databases, kql_table_schema, kql_tables, kql_tree
 from models import *
 from dotenv import load_dotenv
 
 load_dotenv()
-ENDPOINT_URL = os.getenv('OPENAI_ENDPOINT')
-API_KEY = os.getenv("OPENAI_KEY")
-VERSION = os.getenv("OPENAI_VERSION")
-CHAT_MODEL = os.getenv("OPENAI_MODEL")
-if ENDPOINT_URL is None or API_KEY is None or VERSION is None or CHAT_MODEL is None:
+settings = get_settings_instance()
+if settings.endpoint is None or settings.key is None or settings.version is None or settings.chat_model is None:
     logging.error("Missing required environment variables.")
     exit(1)
 
-client = AsyncAzureOpenAI(azure_endpoint=ENDPOINT_URL,
-                          api_key=API_KEY, api_version=VERSION)
+client = AsyncAzureOpenAI(azure_endpoint=settings.endpoint,
+                          api_key=settings.key,
+                          api_version=settings.version)
 
 app = FastAPI()
 
@@ -62,7 +61,7 @@ async def chat(request: ChatRequest):
             status_code=400, detail="Messages property required")
 
     response = await client.chat.completions.create(
-        model=CHAT_MODEL,
+        model=settings.chat_model,
         messages=request.messages,
         temperature=request.temperature
     )
@@ -72,17 +71,20 @@ async def chat(request: ChatRequest):
 
 @app.post("/api/execute")
 async def execute(request: ExecuteRequest):
-    if not request.db or not request.query:
+    if not request.query:
         raise HTTPException(status_code=404, detail="Item not found")
     try:
-        rows = await exec_query(db=request.db, query=request.query)
+        rows = await exec_query(db='ContosoSales', query=request.query)
         # presult = rows.primary_results[0]
         # return DataRows(table_name=presult.table_name,
         #                   table_id=presult.table_id,
         #                   table_kind=presult.table_kind,
         #                   columns=presult.columns,
         #                   raw_rows=presult.raw_rows)
-        return rows.primary_results
+        if rows and rows.primary_results:
+            return rows.primary_results[0]
+        else:
+            return []
     except Exception as e:
         logging.error(e)
         raise HTTPException(status_code=400)
