@@ -2,6 +2,8 @@ import axios from 'axios'
 import { useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import 'react-data-grid/lib/styles.css'
+import DataGrid from 'react-data-grid'
 // import reactLogo from './assets/react.svg'
 // import viteLogo from '/vite.svg'
 // import './App.css'
@@ -14,7 +16,13 @@ Use the following schema:
 
 Rule:
 - Include the database name in the query in the format: database("databasename").tablename
-- Write the KQL query only. No epilogue or prologue.
+- Provide an explanation for the command.
+- Output in valid JSON format using the following format:
+{
+"query"://
+"explanation"://
+}
+- No epilogue or prologue.
 `,
   schema: "...retrieving",
   prompt: "List the first 10 customers in London?",
@@ -53,13 +61,30 @@ interface Tree {
   DatabasesTree: DatabaseTree[]
 }
 
+export function getKQLQuery(completion: string) {
+  const regex = /```kql\s*([\s\S]*?)\s*```/;
+  const match = completion.match(regex);
+  if (match && match[1]) {
+    return match[1].trim();
+  } else {
+    console.log("No KQL query found.");
+    return ""
+  }
+}
+
 function App() {
   const [settings, setSettings] = useState(Default_Settings)
   const [tree, setTree] = useState<Tree>({ DatabasesTree: [] })
   const [showschema, setShowschema] = useState(true)
+  const [columns, setColumns] = useState<any[]>([])
+  const [rows, setRows] = useState<any[]>([])
+  const [query, setQuery] = useState('')
+  const [processing, setProcessing] = useState(false)
 
   const getTree = async () => {
+    if (processing) return;
     try {
+      setProcessing(true)
       //alert('test')
       const re = await axios.get<Tree>(TREE_URL)
       //console.info(JSON.stringify(re.data))
@@ -72,12 +97,16 @@ function App() {
       //alert(tree)
     } catch (e) {
       console.error(e)
+    } finally {
+      setProcessing(false)
     }
 
   }
 
   const getChatCompletion = async () => {
+    if (processing) return;
     try {
+      setProcessing(true)
       const messages = [
         {
           role: 'system',
@@ -96,13 +125,61 @@ function App() {
 
       const re = await axios.post(CHAT_COMPLETION_URL, payload)
       //settings.completion = re.data.content
-      setSettings({ ...settings, completion: re.data.content })
+      const json_data: any = JSON.parse(re.data.content)
+      setSettings({ ...settings, completion: json_data.query + "\n\n" + json_data.explanation })
+      setQuery(json_data.query)
+
+      console.info("query:\n" + json_data.query)
+      if (json_data.query)
+        await execute()
     } catch (e) {
       console.info(e)
+    } finally {
+      setProcessing(false)
     }
   }
 
-  const execute = async () => { }
+  interface PrimaryResults {
+    table_name: string,
+    table_id: number,
+    tabke_kind: string,
+    columns: {
+      column_name: string,
+      column_type: string,
+      ordinal: number
+    }[],
+    raw_rows: any[][]
+  }
+
+  const execute = async () => {
+    try {
+      setColumns([])
+      setRows([])
+      const payload = { db: '', query }
+      const re = await axios.post<PrimaryResults>(EXECUTE_URL, payload)
+      let grid_data = re.data
+      if (grid_data && grid_data.columns && grid_data.columns.length > 0) {
+        //console.info(JSON.stringify(grid_data.columns, null, 2))
+        const columns = grid_data.columns.map(x => ({ key: x.column_name, name: x.column_name, resizable: true, width: 100 }))
+        //console.info(JSON.stringify(columns, null, 2))
+        const rows: any = []
+        grid_data.raw_rows.map((x, idx) => {
+          let row: any = {}
+          row['id'] = idx
+          for (let i = 0; i < grid_data.columns.length; i++) {
+            row[grid_data.columns[i].column_name] = x[i]
+          }
+          rows.push(row)
+        })
+        //console.info(JSON.stringify(rows, null, 2))
+        setColumns(columns)
+        setRows(rows)
+      }
+    }
+    catch (e) {
+      console.error(e)
+    }
+  }
 
   useEffect(() => {
     if (tree)
@@ -117,7 +194,7 @@ function App() {
         <h2 className="text-lg font-bold mx-2 p-0">KQL Commander</h2>
       </header>
       <section className="flex h-[calc(100vh-40px-35px)]">
-        <aside className="w-[350px] bg-slate-50 flex flex-col overflow-auto p-3">
+        <aside className="min-w-[350px] bg-slate-50 flex flex-col overflow-auto p-3">
           <span className="uppercase font-bold">Databases</span>
           <button
             className='bg-blue-600 text-white'
@@ -127,7 +204,7 @@ function App() {
             {!showschema && <span>Show Schema</span>}
           </button>
           <ul className='text-sm'>
-            {tree.DatabasesTree.map(x => <li>
+            {tree.DatabasesTree.map((x, idx) => <li key={'db-' + idx}>
               {x.DatabaseName}
               <ul>
                 {x.Tables.map(table => <li>
@@ -185,12 +262,13 @@ function App() {
             >Execute</button>
           </section>
           <label className='uppercase font-semibold'>Results</label>
-          <div className="h-full bg-slate-200"></div>
+
+          <DataGrid columns={columns} rows={rows} className='h-full w-[calc(100vw-380px)]' />
         </section>
       </section>
 
-      <footer className="h-[35px] flex items-center">
-        <div>Hello</div>
+      <footer className={"h-[35px] flex items-center " + (processing ? "bg-red-600 text-white" : "")}>
+        <div>{processing && <span>Processing ...</span>}</div>
       </footer>
       {/* <div>
         <a href="https://vitejs.dev" target="_blank">
