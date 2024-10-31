@@ -107,29 +107,40 @@ async def get_dbtable_schemas(databases: list, tables: list) -> list:
 async def kql_tree():
     cache_data = await load_key('./cache.dat', 'tree')
     if cache_data is None:
-        # Databases
-        list = []
         databases = await kql_databases()
+        
+        # Create tasks for processing each database
+        db_tasks = []
         for db in databases:
-
-            print("Processing database", db.DatabaseName)
-            tables = await kql_tables(db.DatabaseName)
-            table_list = []
-
-            # NOTE: Perf - process all table schemas concurrently
-            table_infos = await get_table_schemas(db.DatabaseName, tables)
-            for table_info in table_infos:
-                print("Processing table:", table_info.TableName)
-                table_list.append(table_info)
-            list.append(DatabaseTree(
-                DatabaseName=db.DatabaseName, Tables=table_list))
-
-        tree = Tree(DatabasesTree=list)
+            db_tasks.append(process_database(db))
+        
+        # Wait for all database processing tasks to complete
+        db_results = await asyncio.gather(*db_tasks)
+        
+        tree = Tree(DatabasesTree=db_results)
         await save_key('./cache.dat', 'tree', tree)
         return tree
     else:
         return cache_data
 
+async def process_database(db):
+    print("Processing database", db.DatabaseName)
+    tables = await kql_tables(db.DatabaseName)
+    
+    # Create tasks for processing each table
+    table_tasks = []
+    for table in tables:
+        table_tasks.append(process_table(db.DatabaseName, table))
+    
+    # Wait for all table processing tasks to complete
+    table_list = await asyncio.gather(*table_tasks)
+    
+    return DatabaseTree(DatabaseName=db.DatabaseName, Tables=table_list)
+
+async def process_table(db_name, table):
+    print("Processing table:", table.TableName)
+    table_info = await get_schema_info(db_name, table.TableName)
+    return table_info
 
 async def get_data():
     async with KustoClient(kcsb) as client:
