@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useEffect, useState } from 'react'
+import { FaSpinner } from 'react-icons/fa' // Import spinner icon
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import 'react-data-grid/lib/styles.css'
@@ -80,27 +81,24 @@ function App() {
   const [rows, setRows] = useState<any[]>([])
   const [query, setQuery] = useState('')
   const [processing, setProcessing] = useState(false)
+  const [executing, setExecuting] = useState(false) // New state for execute button
 
   const getTree = async () => {
     if (processing) return;
     try {
       setProcessing(true)
-      //alert('test')
       const re = await axios.get<Tree>(TREE_URL)
-      //console.info(JSON.stringify(re.data))
       setTree(re.data)
 
       const regex = /System./g;
       const json_data = JSON.stringify(re.data, null, 2).replace(regex, "")
       settings.schema = json_data
       setSettings({ ...settings })
-      //alert(tree)
     } catch (e) {
       console.error(e)
     } finally {
       setProcessing(false)
     }
-
   }
 
   const getChatCompletion = async () => {
@@ -124,12 +122,10 @@ function App() {
       }
 
       const re = await axios.post(CHAT_COMPLETION_URL, payload)
-      //settings.completion = re.data.content
       const json_data: any = JSON.parse(re.data.content)
       setSettings({ ...settings, completion: json_data.query + "\n\n" + json_data.explanation })
       setQuery(json_data.query)
 
-      console.info("query:\n" + json_data.query)
       if (json_data.query)
         await execute()
     } catch (e) {
@@ -139,29 +135,17 @@ function App() {
     }
   }
 
-  interface PrimaryResults {
-    table_name: string,
-    table_id: number,
-    tabke_kind: string,
-    columns: {
-      column_name: string,
-      column_type: string,
-      ordinal: number
-    }[],
-    raw_rows: any[][]
-  }
-
   const execute = async () => {
+    if (executing) return;
     try {
+      setExecuting(true)
       setColumns([])
       setRows([])
       const payload = { db: '', query }
       const re = await axios.post<PrimaryResults>(EXECUTE_URL, payload)
       let grid_data = re.data
       if (grid_data && grid_data.columns && grid_data.columns.length > 0) {
-        //console.info(JSON.stringify(grid_data.columns, null, 2))
         const columns = grid_data.columns.map(x => ({ key: x.column_name, name: x.column_name, resizable: true, width: 100 }))
-        //console.info(JSON.stringify(columns, null, 2))
         const rows: any = []
         grid_data.raw_rows.map((x, idx) => {
           let row: any = {}
@@ -171,21 +155,19 @@ function App() {
           }
           rows.push(row)
         })
-        //console.info(JSON.stringify(rows, null, 2))
         setColumns(columns)
         setRows(rows)
       }
-    }
-    catch (e) {
+    } catch (e) {
       console.error(e)
+    } finally {
+      setExecuting(false)
     }
   }
 
   useEffect(() => {
     if (tree)
       getTree()
-
-    console.info(JSON.stringify(tree))
   }, [])
 
   return (
@@ -244,52 +226,36 @@ function App() {
             </div>
             <div className='w-1/4 flex flex-col mx-2'>
               <label className='uppercase font-semibold'>Completion</label>
-              {/* <textarea className='h-full resize-none outline-none border p-1' 
-              
-              /> */}
               <div className='h-full bg-slate-800 text-white p-2 overflow-auto'>
                 <Markdown className='' remarkPlugins={[remarkGfm]}>{settings.completion}</Markdown>
               </div>
-
             </div>
           </div>
-          <section className="space-x-2 m-2">
-            <button className="bg-blue-600 text-white p-2"
+          <section className="flex space-x-2 m-2">
+            <button 
+              className={`p-2 flex items-center ${processing ? 'bg-gray-400' : 'bg-blue-600'} text-white`}
               onClick={getChatCompletion}
-            >Process</button>
-            <button className="bg-blue-600 text-white p-2"
+              disabled={processing}
+            >
+              {processing && <FaSpinner className="animate-spin mr-2" />}
+              {processing ? 'Processing...' : 'Process'}
+            </button>
+            <button 
+              className={`p-2 flex items-center ${executing ? 'bg-gray-400' : 'bg-blue-600'} text-white`}
               onClick={execute}
-            >Execute</button>
+              disabled={executing}
+            >
+              {executing && <FaSpinner className="animate-spin mr-2" />}
+              {executing ? 'Executing...' : 'Execute'}
+            </button>
           </section>
           <label className='uppercase font-semibold'>Results</label>
-
           <DataGrid columns={columns} rows={rows} className='h-full w-[calc(100vw-380px)]' />
         </section>
       </section>
-
       <footer className={"h-[35px] flex items-center " + (processing ? "bg-red-600 text-white" : "")}>
         <div>{processing && <span>Processing ...</span>}</div>
       </footer>
-      {/* <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p> */}
     </>
   )
 }
