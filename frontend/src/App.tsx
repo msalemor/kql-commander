@@ -62,6 +62,18 @@ interface Tree {
   DatabasesTree: DatabaseTree[]
 }
 
+interface PrimaryResults {
+  table_name: string
+  table_id: string
+  table_kind: string
+  columns: {
+    column_name: string
+    column_type: string
+    ordinal: number
+  }[],
+  raw_rows: any[][]
+}
+
 export function getKQLQuery(completion: string) {
   const regex = /```kql\s*([\s\S]*?)\s*```/;
   const match = completion.match(regex);
@@ -232,7 +244,7 @@ function App() {
             </div>
           </div>
           <section className="flex space-x-2 m-2">
-            <button 
+            <button
               className={`p-2 flex items-center ${processing ? 'bg-gray-400' : 'bg-blue-600'} text-white`}
               onClick={getChatCompletion}
               disabled={processing}
@@ -240,7 +252,7 @@ function App() {
               {processing && <FaSpinner className="animate-spin mr-2" />}
               {processing ? 'Processing...' : 'Process'}
             </button>
-            <button 
+            <button
               className={`p-2 flex items-center ${executing ? 'bg-gray-400' : 'bg-blue-600'} text-white`}
               onClick={execute}
               disabled={executing}
