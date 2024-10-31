@@ -163,3 +163,4 @@ cython_debug/
 
 static/*
 !static/.gitkeep
+cache.dat
