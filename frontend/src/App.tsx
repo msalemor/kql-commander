@@ -5,6 +5,7 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import 'react-data-grid/lib/styles.css'
 import DataGrid from 'react-data-grid'
+import { IPrimaryResults, ITree } from './interfaces'
 // import reactLogo from './assets/react.svg'
 // import viteLogo from '/vite.svg'
 // import './App.css'
@@ -36,44 +37,6 @@ const CHAT_COMPLETION_URL = BASE_URL + import.meta.env.VITE_COMPLETION_URL
 const EXECUTE_URL = BASE_URL + import.meta.env.VITE_EXECUTE_URL
 
 
-interface IMessage {
-  role: string
-  content: string
-}
-
-interface TableSchema {
-  ColumnName: string
-  DataType: string
-}
-
-
-interface TableInfo {
-  TableName: string
-  Schema: TableSchema[]
-}
-
-
-interface DatabaseTree {
-  DatabaseName: string
-  Tables: TableInfo[]
-}
-
-interface Tree {
-  DatabasesTree: DatabaseTree[]
-}
-
-interface PrimaryResults {
-  table_name: string
-  table_id: string
-  table_kind: string
-  columns: {
-    column_name: string
-    column_type: string
-    ordinal: number
-  }[],
-  raw_rows: any[][]
-}
-
 export function getKQLQuery(completion: string) {
   const regex = /```kql\s*([\s\S]*?)\s*```/;
   const match = completion.match(regex);
@@ -87,7 +50,7 @@ export function getKQLQuery(completion: string) {
 
 function App() {
   const [settings, setSettings] = useState(Default_Settings)
-  const [tree, setTree] = useState<Tree>({ DatabasesTree: [] })
+  const [tree, setTree] = useState<ITree>({ DatabasesTree: [] })
   const [showschema, setShowschema] = useState(true)
   const [columns, setColumns] = useState<any[]>([])
   const [rows, setRows] = useState<any[]>([])
@@ -99,7 +62,7 @@ function App() {
     if (processing) return;
     try {
       setProcessing(true)
-      const re = await axios.get<Tree>(TREE_URL)
+      const re = await axios.get<ITree>(TREE_URL)
       setTree(re.data)
 
       const regex = /System./g;
@@ -154,7 +117,7 @@ function App() {
       setColumns([])
       setRows([])
       const payload = { db: '', query }
-      const re = await axios.post<PrimaryResults>(EXECUTE_URL, payload)
+      const re = await axios.post<IPrimaryResults>(EXECUTE_URL, payload)
       let grid_data = re.data
       if (grid_data && grid_data.columns && grid_data.columns.length > 0) {
         const columns = grid_data.columns.map(x => ({ key: x.column_name, name: x.column_name, resizable: true, width: 100 }))
