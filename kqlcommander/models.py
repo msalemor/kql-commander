@@ -40,6 +40,7 @@ class DatabaseTree(BaseModel):
 
 class Tree(BaseModel):
     DatabasesTree: List[DatabaseTree]
+    IsCached: bool = False
 
 
 class DatabaseTableInfo(BaseModel):

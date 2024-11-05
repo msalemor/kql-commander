@@ -22,6 +22,7 @@ export interface DatabaseTree {
 
 export interface ITree {
     DatabasesTree: DatabaseTree[]
+    IsCached?: boolean
 }
 
 export interface IPrimaryResults {

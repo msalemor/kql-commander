@@ -55,31 +55,47 @@ function App() {
   const [columns, setColumns] = useState<any[]>([])
   const [rows, setRows] = useState<any[]>([])
   const [query, setQuery] = useState('')
-  const [processing, setProcessing] = useState(false)
+  const [processingTree, setProcessingTree] = useState(false);
+  const [processingChatCompletion, setProcessingChatCompletion] = useState(false);
   const [executing, setExecuting] = useState(false) // New state for execute button
 
-  const getTree = async () => {
-    if (processing) return;
+  const getTree = async (use_cache: boolean = true) => {
+    if (processingTree) return;
     try {
-      setProcessing(true)
-      const re = await axios.get<ITree>(TREE_URL)
+      setProcessingTree(true)
+      const re = await axios.get<ITree>(`${TREE_URL}?use_cache=${use_cache}`)
       setTree(re.data)
 
       const regex = /System./g;
       const json_data = JSON.stringify(re.data, null, 2).replace(regex, "")
       settings.schema = json_data
       setSettings({ ...settings })
+
+      if (use_cache && re.data.IsCached) {
+        setProcessingTree(false); //We don't want the 'Processing...' footer when silently refreshing the tree
+        const refresh = await axios.get<ITree>(`${TREE_URL}?use_cache=false`)
+        const cleanedRefreshData = removeIsCached(refresh.data);
+        const cleanedReData = removeIsCached(re.data);
+        if (JSON.stringify(cleanedRefreshData) !== JSON.stringify(cleanedReData)) {
+          console.info("Tree has been updated.")
+          setTree(refresh.data)
+        }
+      }
     } catch (e) {
       console.error(e)
     } finally {
-      setProcessing(false)
+      setProcessingTree(false)
     }
   }
 
+  const removeIsCached = (obj: ITree) => {
+    const { IsCached, ...rest } = obj;
+    return rest;
+  };
+
   const getChatCompletion = async () => {
-    if (processing) return;
+    setProcessingChatCompletion(true);
     try {
-      setProcessing(true)
       const messages = [
         {
           role: 'system',
@@ -102,21 +118,20 @@ function App() {
       setQuery(json_data.query)
 
       if (json_data.query)
-        await execute()
+        await execute(json_data.query)
     } catch (e) {
       console.info(e)
     } finally {
-      setProcessing(false)
+      setProcessingChatCompletion(false);
     }
   }
 
-  const execute = async () => {
-    if (executing) return;
+  const execute = async (queryParam: string = query) => {
+    setExecuting(true)
     try {
-      setExecuting(true)
       setColumns([])
       setRows([])
-      const payload = { db: '', query }
+      const payload = { db: '', query: queryParam }
       const re = await axios.post<IPrimaryResults>(EXECUTE_URL, payload)
       let grid_data = re.data
       if (grid_data && grid_data.columns && grid_data.columns.length > 0) {
@@ -136,7 +151,7 @@ function App() {
     } catch (e) {
       console.error(e)
     } finally {
-      setExecuting(false)
+      setExecuting(false);
     }
   }
 
@@ -161,17 +176,23 @@ function App() {
             {!showschema && <span>Show Schema</span>}
           </button>
           <ul className='text-sm'>
-            {tree.DatabasesTree.map((x, idx) => <li key={'db-' + idx}>
-              {x.DatabaseName}
-              <ul>
-                {x.Tables.map(table => <li>
-                  {table.TableName}
-                  <ul>
-                    {showschema && table.Schema.map(s => <li>{s.ColumnName}-{s.DataType.replace("System.", "")}</li>)}
-                  </ul>
-                </li>)}
-              </ul>
-            </li>)}
+            {tree.DatabasesTree.map((x, idx) => (
+              <li key={'db-' + idx}>
+                {x.DatabaseName}
+                <ul>
+                  {x.Tables.map((table, tableIdx) => (
+                    <li key={'table-' + tableIdx}>
+                      {table.TableName}
+                      <ul>
+                        {showschema && table.Schema.map((s, schemaIdx) => (
+                          <li key={'schema-' + schemaIdx}>{s.ColumnName}-{s.DataType.replace("System.", "")}</li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
           </ul>
         </aside>
         <section className="w-full bg-slate-100 flex flex-col p-3">
@@ -208,16 +229,16 @@ function App() {
           </div>
           <section className="flex space-x-2 m-2">
             <button
-              className={`p-2 flex items-center ${processing ? 'bg-gray-400' : 'bg-blue-600'} text-white`}
+              className={`p-2 flex items-center ${processingChatCompletion ? 'bg-gray-400' : 'bg-blue-600'} text-white`}
               onClick={getChatCompletion}
-              disabled={processing}
+              disabled={processingChatCompletion}
             >
-              {processing && <FaSpinner className="animate-spin mr-2" />}
-              {processing ? 'Processing...' : 'Process'}
+              {processingChatCompletion && <FaSpinner className="animate-spin mr-2" />}
+              {processingChatCompletion ? 'Processing...' : 'Process'}
             </button>
             <button
               className={`p-2 flex items-center ${executing ? 'bg-gray-400' : 'bg-blue-600'} text-white`}
-              onClick={execute}
+              onClick={() => execute()}
               disabled={executing}
             >
               {executing && <FaSpinner className="animate-spin mr-2" />}
@@ -228,8 +249,8 @@ function App() {
           <DataGrid columns={columns} rows={rows} className='h-full w-[calc(100vw-380px)]' />
         </section>
       </section>
-      <footer className={"h-[35px] flex items-center " + (processing ? "bg-red-600 text-white" : "")}>
-        <div>{processing && <span>Processing ...</span>}</div>
+      <footer className={"h-[35px] flex items-center " + (processingTree ? "bg-red-600 text-white" : "")}>
+        <div>{processingTree && <span>Processing ...</span>}</div>
       </footer>
     </>
   )

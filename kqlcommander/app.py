@@ -3,7 +3,7 @@ import os
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from openai import AsyncAzureOpenAI
 from settings import get_settings_instance
 from kqlhelper import exec_query, kql_databases, kql_table_schema, kql_tables, kql_tree
@@ -50,8 +50,8 @@ async def get_schema(db: str = 'ContosoSales', table_name='Customers'):
 
 
 @app.get("/api/tree", response_model=Tree)
-async def get_tree():
-    return await kql_tree()
+async def get_tree(use_cache: bool = Query(default=False)):
+    return await kql_tree(use_cache)
 
 
 @app.post("/api/chat", response_model=ChatResponse)

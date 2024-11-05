@@ -104,8 +104,14 @@ async def get_dbtable_schemas(databases: list, tables: list) -> list:
     return results
 
 
-async def kql_tree():
-    cache_data = await load_key('./cache.dat', 'tree')
+async def kql_tree(use_cache):
+    key_name = f'tree-{settings.cluster}'
+
+    if (use_cache):
+        cache_data = await load_key('./cache.dat', key_name)
+    else: 
+        cache_data = None
+    
     if cache_data is None:
         databases = await kql_databases()
         
@@ -117,10 +123,11 @@ async def kql_tree():
         # Wait for all database processing tasks to complete
         db_results = await asyncio.gather(*db_tasks)
         
-        tree = Tree(DatabasesTree=db_results)
-        await save_key('./cache.dat', 'tree', tree)
+        tree = Tree(DatabasesTree=db_results, IsCached=False)
+        await save_key('./cache.dat', key_name, tree)
         return tree
     else:
+        cache_data.IsCached = True
         return cache_data
 
 async def process_database(db):
