@@ -15,8 +15,8 @@ Use the following schema:
 <SCHEMA>
 
 Rule:
-- Include the database name in the query in the format ONLY if schema provided contains more than one database. Example: : database("databasename").tablename | where column == 'value'
-- If the provided schema only has one database, omit the database name, only use table names. Example: : tablename | where column == 'value'
+- Include the database name in the query in the format ONLY if schema provided contains more than one database. Example: database("databasename").tablename | where column == 'value'
+- If the provided schema only has one database, omit the database name, only use table names. Example: tablename | where column == 'value'
 - Provide an explanation for the command.
 - Output in valid JSON format using the following format:
 {
