@@ -74,7 +74,7 @@ async def execute(request: ExecuteRequest):
     if not request.query:
         raise HTTPException(status_code=404, detail="Item not found")
     try:
-        rows = await exec_query(db='ContosoSales', query=request.query)
+        rows = await exec_query(db=request.db, query=request.query)
         # presult = rows.primary_results[0]
         # return DataRows(table_name=presult.table_name,
         #                   table_id=presult.table_id,
