@@ -25,9 +25,9 @@ async def exec_query(db, query):
         async with KustoClient(kcsb) as client:
             rows = await client.execute(db, query)
             return rows
-    except:
-        logging.error("Unable to query")
-        return []
+    except Exception as e:
+        logging.error("Unable to query: " + str(e))
+        raise(e)
 
 
 async def kql_databases():

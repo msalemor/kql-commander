@@ -87,7 +87,7 @@ async def execute(request: ExecuteRequest):
             return []
     except Exception as e:
         logging.error(e)
-        raise HTTPException(status_code=400)
+        raise HTTPException(status_code=400, detail=e.args)
 
 app.mount("/", StaticFiles(directory="static"), name="static")
 

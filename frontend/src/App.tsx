@@ -1,6 +1,6 @@
-import axios from 'axios'
 import { useEffect, useState } from 'react'
-import { FaSpinner } from 'react-icons/fa' // Import spinner icon
+import axios from 'axios'
+import { FaSpinner } from 'react-icons/fa'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import 'react-data-grid/lib/styles.css'
@@ -30,6 +30,21 @@ Rule:
   completion: ""
 }
 
+const PROMPT_FIX_ERROR =
+`You are an KQL (Kusto query language) assistant that fix queries syntax errors. 
+
+This is the query that you need to fix:
+<QUERY>
+
+This is the error when running that query:
+<ERROR>
+
+No epilogue or prologue. Only output in pure valid JSON using the following structure:
+{
+"newQuery"://
+}
+`
+
 const BASE_URL = import.meta.env.VITE_BASE_URL
 const TREE_URL = BASE_URL + import.meta.env.VITE_TREE_URL
 const CHAT_COMPLETION_URL = BASE_URL + import.meta.env.VITE_COMPLETION_URL
@@ -55,10 +70,13 @@ function App() {
   const [query, setQuery] = useState('')
   const [processingTree, setProcessingTree] = useState(false);
   const [processingChatCompletion, setProcessingChatCompletion] = useState(false);
-  const [executing, setExecuting] = useState(false) // New state for execute button
+  const [executing, setExecuting] = useState(false)
   const [expandedDatabases, setExpandedDatabases] = useState<Set<number>>(new Set())
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set())
   const [selectedDatabases, setSelectedDatabases] = useState<Set<number>>(new Set())
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [errorDetails, setErrorDetails] = useState<string | null>(null)
+  const [fixingError, setFixingError] = useState(false);
 
   const getTree = async (use_cache: boolean = true) => {
     if (processingTree) return;
@@ -72,12 +90,11 @@ function App() {
       settings.schema = json_data
       setSettings({ ...settings })
 
-      // Initialize selected databases
       const allDatabases = new Set(re.data.DatabasesTree.map((_, idx) => idx));
       setSelectedDatabases(allDatabases);
 
       if (use_cache && re.data.IsCached) {
-        setProcessingTree(false); //We don't want the 'Processing...' footer when silently refreshing the tree
+        setProcessingTree(false);
         const refresh = await axios.get<ITree>(`${TREE_URL}?use_cache=false`)
         const cleanedRefreshData = removeIsCached(refresh.data);
         const cleanedReData = removeIsCached(re.data);
@@ -99,6 +116,8 @@ function App() {
   };
 
   const getChatCompletion = async () => {
+    setErrorMessage(null)
+    setErrorDetails(null)
     setProcessingChatCompletion(true);
     try {
       const messages = [
@@ -133,6 +152,8 @@ function App() {
 
   const execute = async (queryParam: string = query) => {
     setExecuting(true)
+    setErrorMessage(null)
+    setErrorDetails(null)
     try {
       setColumns([])
       setRows([])
@@ -156,9 +177,50 @@ function App() {
         setRows(rows)
       }
     } catch (e) {
-      console.error(e)
+      if (axios.isAxiosError(e) && e.response?.status === 400) {
+
+        const errorDetail = e.response.data.detail.toString()
+        const isSyntaxError = errorDetail.toLowerCase().indexOf("syntax") !== -1 || errorDetail.toLowerCase().indexOf("semantic") !== -1
+        setErrorMessage(errorDetail)
+        if (isSyntaxError) {      
+          setErrorDetails(errorDetail)
+        }
+      } else {
+        console.error(e)
+      }
     } finally {
       setExecuting(false);
+    }
+  }
+
+  const fixError = async () => {
+    if (!errorDetails) return;
+
+    try {
+      setFixingError(true);
+
+      const messages = [
+        {
+          role: 'user',
+          content: PROMPT_FIX_ERROR.replace('<QUERY>', query).replace('<ERROR>', errorDetails)
+        }
+      ]
+
+      const payload = {
+        messages,
+        temperature: 0.1,
+        chat_model: 'gpt-4o'
+      }
+      const re = await axios.post(CHAT_COMPLETION_URL, payload)
+      const json_data: any = JSON.parse(re.data.content.replace(/```json\n?|```/g, ''))
+      console.log(json_data)
+      setSettings({ ...settings, completion: json_data.newQuery })
+      setQuery(json_data.newQuery)
+      await execute(json_data.newQuery)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setFixingError(false);
     }
   }
 
@@ -333,13 +395,24 @@ function App() {
               {executing && <FaSpinner className="animate-spin mr-2" />}
               {executing ? 'Executing...' : 'Execute'}
             </button>
+            {errorDetails && (
+              <button
+                className={`p-2 flex items-center ${fixingError ? 'bg-gray-400' : 'bg-red-600'} text-white`}
+                onClick={fixError}
+                disabled={fixingError}
+              >
+                {fixingError && <FaSpinner className="animate-spin mr-2" />}
+                {fixingError ? 'Fixing...' : 'Try to fix error'}
+              </button>
+            )}
           </section>
           <label className='uppercase font-semibold'>Results</label>
           <DataGrid columns={columns} rows={rows} className='h-full w-[calc(100vw-380px)]' />
         </section>
       </section>
-      <footer className={"h-[35px] flex items-center " + (processingTree ? "bg-red-600 text-white" : "")}>
+      <footer className={"h-[35px] flex items-center " + (processingTree || errorMessage ? "bg-red-600 text-white" : "")}>
         <div>{processingTree && <span>Processing ...</span>}</div>
+        <div>{errorMessage && <span>Error: {errorMessage}</span>}</div>
       </footer>
     </>
   )
