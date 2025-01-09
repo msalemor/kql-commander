@@ -137,7 +137,7 @@ function App() {
       }
 
       const re = await axios.post(CHAT_COMPLETION_URL, payload)
-      const json_data: any = JSON.parse(re.data.content)
+      const json_data: any = JSON.parse(re.data.content.replace("```json", "").replace("```", ""))
       setSettings({ ...settings, completion: json_data.query + "\n\n" + json_data.explanation })
       setQuery(json_data.query)
 
@@ -212,7 +212,7 @@ function App() {
         chat_model: 'gpt-4o'
       }
       const re = await axios.post(CHAT_COMPLETION_URL, payload)
-      const json_data: any = JSON.parse(re.data.content.replace(/```json\n?|```/g, ''))
+      const json_data: any = JSON.parse(re.data.content.replace("```json", "").replace("```", ""))
       console.log(json_data)
       setSettings({ ...settings, completion: json_data.newQuery })
       setQuery(json_data.newQuery)
